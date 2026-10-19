@@ -5,13 +5,11 @@ Homebrew tap for Max Awad's software.
 ## iMake for macOS
 
 ```bash
-brew install --cask maxawad/tap/imake
+brew install maxawad/tap/imake
 ```
 
 Apple Silicon, macOS 14 or newer. The cask installs the signed and notarized
-`iMake.app` published by
-[`maxawad/imake-client-apps`](https://github.com/maxawad/imake-client-apps)
-to `https://downloads.imake.lol`.
+`iMake.app` published to `https://downloads.imake.lol`.
 
 `brew uninstall --cask imake` removes the app and unloads the background
 `com.devcluster.*` agents. Add `--zap` to also delete `~/.devcluster` and the
