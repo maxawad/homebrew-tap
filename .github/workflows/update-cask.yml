@@ -1,0 +1,87 @@
+name: Update iMake cask
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-imake-cask
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump to the published macOS release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out tap
+        uses: actions/checkout@v4
+
+      - name: Read published manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            "https://downloads.imake.lol/releases/latest/macos.json?cache=${GITHUB_RUN_ID}" \
+            --output macos.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, re
+          m = json.load(open("macos.json"))
+          version, build, sha = str(m["version"]), str(m["build"]), str(m["sha256"])
+          assert re.fullmatch(r"[0-9]+(\.[0-9]+)*", version), version
+          assert build.isdigit(), build
+          assert re.fullmatch(r"[0-9a-f]{64}", sha), sha
+          assert m["releaseVersion"] == f"{version}.{build}", m["releaseVersion"]
+          print(f"version={version}")
+          print(f"build={build}")
+          print(f"sha256={sha}")
+          PY
+
+      - name: Verify the versioned DMG matches the manifest
+        env:
+          RELEASE_VERSION: ${{ steps.manifest.outputs.version }}.${{ steps.manifest.outputs.build }}
+          EXPECTED_SHA: ${{ steps.manifest.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            "https://downloads.imake.lol/releases/${RELEASE_VERSION}/iMake-macOS.dmg" \
+            --output iMake-macOS.dmg
+          echo "${EXPECTED_SHA}  iMake-macOS.dmg" | sha256sum --check --status
+          rm -f iMake-macOS.dmg macos.json
+
+      - name: Rewrite the cask
+        env:
+          CASK_VERSION: ${{ steps.manifest.outputs.version }},${{ steps.manifest.outputs.build }}
+          CASK_SHA: ${{ steps.manifest.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          path = "Casks/imake.rb"
+          src = open(path).read()
+          src, n1 = re.subn(r'^  version "[^"]+"$',
+                            f'  version "{os.environ["CASK_VERSION"]}"', src, flags=re.M)
+          src, n2 = re.subn(r'^  sha256 "[^"]+"$',
+                            f'  sha256 "{os.environ["CASK_SHA"]}"', src, flags=re.M)
+          assert n1 == 1 and n2 == 1, (n1, n2)
+          open(path, "w").write(src)
+          PY
+
+      - name: Commit when the release moved
+        env:
+          RELEASE_VERSION: ${{ steps.manifest.outputs.version }}.${{ steps.manifest.outputs.build }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Casks/imake.rb; then
+            echo "Cask already points at ${RELEASE_VERSION}."
+            exit 0
+          fi
+          git config user.name "Max Awad"
+          git config user.email "max@redxam.com"
+          git add Casks/imake.rb
+          git commit -m "imake ${RELEASE_VERSION}"
+          git push
