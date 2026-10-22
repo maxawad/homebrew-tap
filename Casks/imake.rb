@@ -1,6 +1,6 @@
 cask "imake" do
-  version "1.1.8,100261"
-  sha256 "ca3f91fa258c559d384f1d101003df0b4126185d16ace6cb53d4968989cfcdbe"
+  version "1.1.9,100271"
+  sha256 "26aa5b7a38f1d91c53478c64577e67ecb9dcb3b8594bedaffe564fe62331c806"
 
   url "https://downloads.imake.lol/releases/#{version.csv.first}.#{version.csv.second}/iMake-macOS.dmg",
       verified: "downloads.imake.lol/"
